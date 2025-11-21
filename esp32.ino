@@ -42,8 +42,8 @@ const char* ssid = "MARHABA";
 const char* password = "marhaba23";
 
 // ------------------ Cloudflare Worker --------------
-const char* worker_url = "https://dry-wildflower-2539.saaidabenaissa.workers.dev/ingest";
-const char* secret     = "7e3dd7cd46ec08905d5d6908066baf49a093765648ca5b96e7438ad5d39fce03";
+const char* worker_url = "";
+const char* secret     = "";
 const char* device_id  = "esp32-test";
 
 // ------------------ Limitation envoi ----------------
