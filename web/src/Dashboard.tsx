@@ -13,7 +13,7 @@ import { auth } from './firebase';
 
 // Configuration
 const DEVICE_ID = 'esp32-home-01';
-const POLLING_INTERVAL = 5000;
+const POLLING_INTERVAL = 10000; // Augmenté à 10 secondes
 const ITEMS_PER_PAGE = 10;
 
 const Dashboard = () => {
@@ -50,6 +50,11 @@ const Dashboard = () => {
     device_name: 'ESP32 Home 01',
     alert_level: 'Normal'
   });
+
+  // Fonction utilitaire pour les valeurs sûres
+  const getSafeValue = (value: any, defaultValue: any = 0) => {
+    return value !== null && value !== undefined ? value : defaultValue;
+  };
 
   // Récupérer l'email de l'utilisateur connecté
   useEffect(() => {
@@ -90,97 +95,127 @@ const Dashboard = () => {
         loadHistoricalRecords()
       ]);
     } catch (error) {
-      console.error('Error loading dashboard data:', error);
+      console.error('❌ Error loading dashboard data:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  // Charger les données temps réel (lectures + statut)
-  const loadRealtimeData = async () => {
-    try {
-      const [latestReading, deviceStatus] = await Promise.all([
-        dashboardService.getLatestReadings(DEVICE_ID),
-        dashboardService.getDeviceStatus(DEVICE_ID)
-      ]);
-
-      console.log('Latest reading:', latestReading);
-      console.log('Device status:', deviceStatus);
-
-      if (latestReading) {
-        setCurrentState(prev => ({
-          ...prev,
-          gas_value: latestReading.gas_value || 0,
-          fire_value: latestReading.fire_value || 0,
-          humidity_value: latestReading.humidity_value || 0,
-          keypad_status: latestReading.keypad_status || 'Aucun',
-          last_seen: formatTimestamp(latestReading.ts)
-        }));
-
-        // Mettre à jour l'alerte
-        const alertLevel = calculateAlertLevel(latestReading);
-        setCurrentState(prev => ({ ...prev, alert_level: alertLevel }));
-      }
-
-      if (deviceStatus) {
-        setCurrentState(prev => ({
-          ...prev,
-          system_armed: deviceStatus.system_armed || false,
-          led_red: deviceStatus.led_red || false,
-          led_green: deviceStatus.led_green || false,
-          buzzer: deviceStatus.buzzer || false,
-          last_seen: formatTimestamp(deviceStatus.last_seen)
-        }));
-
-        // Vérifier la connexion
-        const twoMinutesAgo = Date.now() - (2 * 60 * 1000);
-        const lastSeenTimestamp = typeof deviceStatus.last_seen === 'number' ? deviceStatus.last_seen : new Date(deviceStatus.last_seen).getTime();
-        const isDeviceConnected = lastSeenTimestamp > twoMinutesAgo;
-        setIsConnected(isDeviceConnected);
-        
-        console.log('Connection status:', isDeviceConnected, 'Last seen:', deviceStatus.last_seen, 'Now:', Date.now());
-      }
-    } catch (error) {
-      console.error('Error loading realtime data:', error);
-      setIsConnected(false);
     }
   };
 
   // Formater le timestamp
   const formatTimestamp = (timestamp: any) => {
     if (!timestamp) return 'Jamais';
-    const date = typeof timestamp === 'number' ? new Date(timestamp) : new Date(timestamp);
+    
+    // Convertir en millisecondes si c'est en secondes
+    let date;
+    if (typeof timestamp === 'number') {
+      // Si le timestamp est trop petit (en secondes), convertir en millisecondes
+      date = timestamp < 1000000000000 ? new Date(timestamp * 1000) : new Date(timestamp);
+    } else {
+      date = new Date(timestamp);
+    }
+    
     return date.toLocaleString('fr-FR');
+  };
+
+  // Charger les données temps réel (lectures + statut)
+  const loadRealtimeData = async () => {
+    try {
+      console.log('🔄 Loading realtime data...');
+      
+      // Vérifier d'abord si le device existe
+      const deviceExists = await dashboardService.checkDeviceExists(DEVICE_ID);
+      if (!deviceExists) {
+        console.error(`❌ Device ${DEVICE_ID} not found in database`);
+        setIsConnected(false);
+        return;
+      }
+
+      const [latestReading, deviceStatus] = await Promise.all([
+        dashboardService.getLatestReadings(DEVICE_ID),
+        dashboardService.getDeviceStatus(DEVICE_ID)
+      ]);
+
+      console.log('📊 Latest reading:', latestReading);
+      console.log('📱 Device status:', deviceStatus);
+
+      // Mettre à jour l'état avec les données récupérées
+      setCurrentState(prev => {
+        const newState = { ...prev };
+        
+        if (latestReading) {
+          newState.gas_value = getSafeValue(latestReading.gas_value, 0);
+          newState.fire_value = getSafeValue(latestReading.fire_value, 0);
+          newState.humidity_value = getSafeValue(latestReading.humidity_value, 0);
+          newState.keypad_status = latestReading.keypad_status || 'Aucun';
+          newState.last_seen = formatTimestamp(latestReading.ts);
+        }
+
+        if (deviceStatus) {
+          newState.system_armed = deviceStatus.system_armed || false;
+          newState.led_red = deviceStatus.led_red || false;
+          newState.led_green = deviceStatus.led_green || false;
+          newState.buzzer = deviceStatus.buzzer || false;
+          newState.last_seen = formatTimestamp(deviceStatus.last_seen);
+        }
+
+        // Mettre à jour l'alerte
+        if (latestReading) {
+          newState.alert_level = calculateAlertLevel(latestReading);
+        }
+
+        return newState;
+      });
+
+      // Vérifier la connexion
+      if (deviceStatus && deviceStatus.last_seen) {
+        const now = Date.now();
+        const lastSeenMs = typeof deviceStatus.last_seen === 'number' 
+          ? (deviceStatus.last_seen < 1000000000000 ? deviceStatus.last_seen * 1000 : deviceStatus.last_seen)
+          : new Date(deviceStatus.last_seen).getTime();
+        
+        const fiveMinutesAgo = now - (5 * 60 * 1000); // 5 minutes
+        const isDeviceConnected = lastSeenMs > fiveMinutesAgo;
+        
+        setIsConnected(isDeviceConnected);
+        console.log(`📡 Connection status: ${isDeviceConnected ? 'Connected' : 'Disconnected'}, Last seen: ${new Date(lastSeenMs).toLocaleString()}`);
+      }
+    } catch (error) {
+      console.error('❌ Error loading realtime data:', error);
+      setIsConnected(false);
+    }
   };
 
   // Charger les données historiques pour les graphiques
   const loadHistoricalData = async () => {
     try {
       const hours = period === '24h' ? 24 : period === '7d' ? 168 : 720;
-      const since = Date.now() - (hours * 60 * 60 * 1000);
       
-      console.log('Fetching historical data for', hours, 'hours, since:', new Date(since));
+      console.log(`🔍 Fetching historical data for ${hours} hours`);
       
       const readings = await dashboardService.getHistoricalReadings(DEVICE_ID, hours);
       
-      console.log('Raw historical readings:', readings);
+      console.log(`✅ Raw historical readings: ${readings.length} records`);
       
-      const formattedData = readings.map(reading => ({
-        timestamp: new Date(reading.ts).toLocaleTimeString('fr-FR', { 
-          hour: '2-digit', 
-          minute: '2-digit',
-          ...(hours > 24 && { day: '2-digit', month: '2-digit' })
-        }),
-        gas_value: reading.gas_value || 0,
-        fire_value: reading.fire_value || 0,
-        humidity_value: reading.humidity_value || 0,
-      }));
+      const formattedData = readings.map(reading => {
+        // Convertir le timestamp correctement pour l'affichage
+        const timestamp = reading.ts < 1000000000000 ? reading.ts * 1000 : reading.ts;
+        return {
+          timestamp: new Date(timestamp).toLocaleTimeString('fr-FR', { 
+            hour: '2-digit', 
+            minute: '2-digit',
+            ...(hours > 24 && { day: '2-digit', month: '2-digit' })
+          }),
+          gas_value: getSafeValue(reading.gas_value, 0),
+          fire_value: getSafeValue(reading.fire_value, 0),
+          humidity_value: getSafeValue(reading.humidity_value, 0),
+        };
+      });
       
-      console.log('Formatted chart data:', formattedData);
+      console.log('📈 Formatted chart data:', formattedData);
       
       setHistoricalData(formattedData);
     } catch (error) {
-      console.error('Error loading historical data:', error);
+      console.error('❌ Error loading historical data:', error);
     }
   };
 
@@ -188,19 +223,22 @@ const Dashboard = () => {
   const loadEvents = async () => {
     try {
       const eventsData = await dashboardService.getRecentEvents(DEVICE_ID, 5);
-      console.log('Recent events:', eventsData);
+      console.log('📋 Recent events:', eventsData);
       
-      const formattedEvents = eventsData.map(event => ({
-        id: event.id,
-        time: new Date(event.ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-        type: dashboardService.formatEventType(event.type),
-        status: formatEventStatus(event.type, event.value),
-        value: event.value
-      }));
+      const formattedEvents = eventsData.map(event => {
+        const timestamp = event.ts < 1000000000000 ? event.ts * 1000 : event.ts;
+        return {
+          id: event.id,
+          time: new Date(timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+          type: dashboardService.formatEventType(event.type),
+          status: formatEventStatus(event.type, event.value),
+          value: event.value
+        };
+      });
       
       setEvents(formattedEvents);
     } catch (error) {
-      console.error('Error loading events:', error);
+      console.error('❌ Error loading events:', error);
     }
   };
 
@@ -213,31 +251,37 @@ const Dashboard = () => {
         dashboardService.getAllReadings(DEVICE_ID)
       ]);
 
-      console.log('Historical events:', eventsData);
-      console.log('Historical readings:', readingsData);
+      console.log(`📚 Historical events: ${eventsData.length} records`);
+      console.log(`📊 Historical readings: ${readingsData.length} records`);
 
       // Combiner et formater les données
-      const formattedEvents = eventsData.map(event => ({
-        id: `event_${event.id}`,
-        date: new Date(event.ts).toLocaleDateString('fr-FR'),
-        time: new Date(event.ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-        type: dashboardService.formatEventType(event.type),
-        value: event.value,
-        status: formatEventStatus(event.type, event.value),
-        action: getEventAction(event.type, event.value),
-        timestamp: event.ts
-      }));
+      const formattedEvents = eventsData.map(event => {
+        const timestamp = event.ts < 1000000000000 ? event.ts * 1000 : event.ts;
+        return {
+          id: `event_${event.id}`,
+          date: new Date(timestamp).toLocaleDateString('fr-FR'),
+          time: new Date(timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+          type: dashboardService.formatEventType(event.type),
+          value: event.value,
+          status: formatEventStatus(event.type, event.value),
+          action: getEventAction(event.type, event.value),
+          timestamp: timestamp
+        };
+      });
 
-      const formattedReadings = readingsData.map(reading => ({
-        id: `reading_${reading.id}`,
-        date: new Date(reading.ts).toLocaleDateString('fr-FR'),
-        time: new Date(reading.ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-        type: 'Lecture Capteur',
-        value: `Gaz: ${reading.gas_value}ppm, Feu: ${reading.fire_value}°C, Humidité: ${reading.humidity_value}%, RFID: ${reading.keypad_status || 'N/A'}`,
-        status: '📊 Mesure',
-        action: 'Enregistrement',
-        timestamp: reading.ts
-      }));
+      const formattedReadings = readingsData.map(reading => {
+        const timestamp = reading.ts < 1000000000000 ? reading.ts * 1000 : reading.ts;
+        return {
+          id: `reading_${reading.id}`,
+          date: new Date(timestamp).toLocaleDateString('fr-FR'),
+          time: new Date(timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+          type: 'Lecture Capteur',
+          value: `Gaz: ${getSafeValue(reading.gas_value, 0)}ppm, Feu: ${getSafeValue(reading.fire_value, 0)}°C, Humidité: ${getSafeValue(reading.humidity_value, 0)}%, RFID: ${reading.keypad_status || 'N/A'}`,
+          status: '📊 Mesure',
+          action: 'Enregistrement',
+          timestamp: timestamp
+        };
+      });
 
       // Combiner et trier par timestamp
       const allRecords = [...formattedEvents, ...formattedReadings]
@@ -247,7 +291,7 @@ const Dashboard = () => {
       setFilteredRecords(allRecords);
       updatePagination(allRecords);
     } catch (error) {
-      console.error('Error loading historical records:', error);
+      console.error('❌ Error loading historical records:', error);
     }
   };
 
@@ -267,8 +311,8 @@ const Dashboard = () => {
 
   // Helper pour calculer le niveau d'alerte
   const calculateAlertLevel = (reading: Reading): string => {
-    if (reading.gas_value > 80 || reading.fire_value > 60) return 'Urgent';
-    if (reading.gas_value > 60 || reading.fire_value > 40) return 'Alerte';
+    if (getSafeValue(reading.gas_value, 0) > 80 || getSafeValue(reading.fire_value, 0) > 60) return 'Urgent';
+    if (getSafeValue(reading.gas_value, 0) > 60 || getSafeValue(reading.fire_value, 0) > 40) return 'Alerte';
     return 'Normal';
   };
 
@@ -447,8 +491,9 @@ const Dashboard = () => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
         <div className="text-center">
-          <Activity className="mx-auto mb-4 text-blue-500" size={48} />
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
           <p className="text-xl font-semibold text-gray-700">Chargement des données...</p>
+          <p className="text-gray-500 mt-2">Vérification de la connexion à la base de données</p>
         </div>
       </div>
     );
@@ -611,18 +656,24 @@ const Dashboard = () => {
               <div className="bg-white rounded-2xl shadow-xl p-6">
                 <h2 className="text-xl font-bold text-gray-800 mb-4">Événements Récents</h2>
                 <div className="space-y-3 max-h-[340px] overflow-y-auto">
-                  {events.map(event => (
-                    <div key={event.id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                      <div className="flex-shrink-0 w-16 text-sm font-semibold text-gray-600">
-                        {event.time}
+                  {events.length > 0 ? (
+                    events.map(event => (
+                      <div key={event.id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                        <div className="flex-shrink-0 w-16 text-sm font-semibold text-gray-600">
+                          {event.time}
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-semibold text-gray-800">{event.type}</div>
+                          <div className="text-sm text-gray-600">{event.value}</div>
+                        </div>
+                        <div className="text-lg">{event.status}</div>
                       </div>
-                      <div className="flex-1">
-                        <div className="font-semibold text-gray-800">{event.type}</div>
-                        <div className="text-sm text-gray-600">{event.value}</div>
-                      </div>
-                      <div className="text-lg">{event.status}</div>
+                    ))
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      Aucun événement récent
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
             </div>
@@ -714,104 +765,114 @@ const Dashboard = () => {
 
             {/* Tableau d'historique */}
             <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gradient-to-r from-blue-50 to-purple-50">
-                    <tr>
-                      <th className="px-6 py-4 text-left text-sm font-bold text-gray-700">ID</th>
-                      <th className="px-6 py-4 text-left text-sm font-bold text-gray-700">Date</th>
-                      <th className="px-6 py-4 text-left text-sm font-bold text-gray-700">Heure</th>
-                      <th className="px-6 py-4 text-left text-sm font-bold text-gray-700">Type</th>
-                      <th className="px-6 py-4 text-left text-sm font-bold text-gray-700">Valeur</th>
-                      <th className="px-6 py-4 text-left text-sm font-bold text-gray-700">Statut</th>
-                      <th className="px-6 py-4 text-left text-sm font-bold text-gray-700">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {getCurrentPageData().map((record, index) => (
-                      <tr key={record.id} className={`hover:bg-gray-50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-25'}`}>
-                        <td className="px-6 py-4 text-sm text-gray-800 font-semibold">#{record.id}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{record.date}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{record.time}</td>
-                        <td className="px-6 py-4 text-sm">
-                          <span className="px-3 py-1 rounded-full bg-blue-100 text-blue-700 font-medium">
-                            {record.type}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-800 font-medium max-w-xs truncate">{record.value}</td>
-                        <td className="px-6 py-4 text-sm">
-                          <span className={`px-3 py-1 rounded-full font-medium ${getStatusBadge(record.status)}`}>
-                            {record.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{record.action}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              {filteredRecords.length > 0 ? (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gradient-to-r from-blue-50 to-purple-50">
+                        <tr>
+                          <th className="px-6 py-4 text-left text-sm font-bold text-gray-700">ID</th>
+                          <th className="px-6 py-4 text-left text-sm font-bold text-gray-700">Date</th>
+                          <th className="px-6 py-4 text-left text-sm font-bold text-gray-700">Heure</th>
+                          <th className="px-6 py-4 text-left text-sm font-bold text-gray-700">Type</th>
+                          <th className="px-6 py-4 text-left text-sm font-bold text-gray-700">Valeur</th>
+                          <th className="px-6 py-4 text-left text-sm font-bold text-gray-700">Statut</th>
+                          <th className="px-6 py-4 text-left text-sm font-bold text-gray-700">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {getCurrentPageData().map((record, index) => (
+                          <tr key={record.id} className={`hover:bg-gray-50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-25'}`}>
+                            <td className="px-6 py-4 text-sm text-gray-800 font-semibold">#{record.id}</td>
+                            <td className="px-6 py-4 text-sm text-gray-600">{record.date}</td>
+                            <td className="px-6 py-4 text-sm text-gray-600">{record.time}</td>
+                            <td className="px-6 py-4 text-sm">
+                              <span className="px-3 py-1 rounded-full bg-blue-100 text-blue-700 font-medium">
+                                {record.type}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-sm text-gray-800 font-medium max-w-xs truncate">{record.value}</td>
+                            <td className="px-6 py-4 text-sm">
+                              <span className={`px-3 py-1 rounded-full font-medium ${getStatusBadge(record.status)}`}>
+                                {record.status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-sm text-gray-600">{record.action}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
 
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="bg-white px-6 py-4 border-t border-gray-200">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm text-gray-700">
-                      Affichage de {(currentPage - 1) * ITEMS_PER_PAGE + 1} à {Math.min(currentPage * ITEMS_PER_PAGE, filteredRecords.length)} sur {filteredRecords.length} entrées
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={goToPrevPage}
-                        disabled={currentPage === 1}
-                        className={`p-2 rounded-lg border ${
-                          currentPage === 1 
-                            ? 'text-gray-400 border-gray-300 cursor-not-allowed' 
-                            : 'text-gray-700 border-gray-300 hover:bg-gray-50'
-                        }`}
-                      >
-                        <ChevronLeft size={20} />
-                      </button>
-                      
-                      {/* Indicateurs de page */}
-                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                        let pageNum;
-                        if (totalPages <= 5) {
-                          pageNum = i + 1;
-                        } else if (currentPage <= 3) {
-                          pageNum = i + 1;
-                        } else if (currentPage >= totalPages - 2) {
-                          pageNum = totalPages - 4 + i;
-                        } else {
-                          pageNum = currentPage - 2 + i;
-                        }
-                        
-                        return (
+                  {/* Pagination */}
+                  {totalPages > 1 && (
+                    <div className="bg-white px-6 py-4 border-t border-gray-200">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm text-gray-700">
+                          Affichage de {(currentPage - 1) * ITEMS_PER_PAGE + 1} à {Math.min(currentPage * ITEMS_PER_PAGE, filteredRecords.length)} sur {filteredRecords.length} entrées
+                        </div>
+                        <div className="flex items-center gap-2">
                           <button
-                            key={pageNum}
-                            onClick={() => goToPage(pageNum)}
-                            className={`px-3 py-1 rounded-lg border ${
-                              currentPage === pageNum
-                                ? 'bg-blue-500 text-white border-blue-500'
+                            onClick={goToPrevPage}
+                            disabled={currentPage === 1}
+                            className={`p-2 rounded-lg border ${
+                              currentPage === 1 
+                                ? 'text-gray-400 border-gray-300 cursor-not-allowed' 
                                 : 'text-gray-700 border-gray-300 hover:bg-gray-50'
                             }`}
                           >
-                            {pageNum}
+                            <ChevronLeft size={20} />
                           </button>
-                        );
-                      })}
-                      
-                      <button
-                        onClick={goToNextPage}
-                        disabled={currentPage === totalPages}
-                        className={`p-2 rounded-lg border ${
-                          currentPage === totalPages
-                            ? 'text-gray-400 border-gray-300 cursor-not-allowed'
-                            : 'text-gray-700 border-gray-300 hover:bg-gray-50'
-                        }`}
-                      >
-                        <ChevronRight size={20} />
-                      </button>
+                          
+                          {/* Indicateurs de page */}
+                          {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                            let pageNum;
+                            if (totalPages <= 5) {
+                              pageNum = i + 1;
+                            } else if (currentPage <= 3) {
+                              pageNum = i + 1;
+                            } else if (currentPage >= totalPages - 2) {
+                              pageNum = totalPages - 4 + i;
+                            } else {
+                              pageNum = currentPage - 2 + i;
+                            }
+                            
+                            return (
+                              <button
+                                key={pageNum}
+                                onClick={() => goToPage(pageNum)}
+                                className={`px-3 py-1 rounded-lg border ${
+                                  currentPage === pageNum
+                                    ? 'bg-blue-500 text-white border-blue-500'
+                                    : 'text-gray-700 border-gray-300 hover:bg-gray-50'
+                                }`}
+                              >
+                                {pageNum}
+                              </button>
+                            );
+                          })}
+                          
+                          <button
+                            onClick={goToNextPage}
+                            disabled={currentPage === totalPages}
+                            className={`p-2 rounded-lg border ${
+                              currentPage === totalPages
+                                ? 'text-gray-400 border-gray-300 cursor-not-allowed'
+                                : 'text-gray-700 border-gray-300 hover:bg-gray-50'
+                            }`}
+                          >
+                            <ChevronRight size={20} />
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  )}
+                </>
+              ) : (
+                <div className="text-center py-12">
+                  <div className="text-gray-400 text-6xl mb-4">📊</div>
+                  <h3 className="text-lg font-semibold text-gray-700 mb-2">Aucune donnée trouvée</h3>
+                  <p className="text-gray-500">Aucun enregistrement ne correspond à vos critères de recherche.</p>
                 </div>
               )}
             </div>
