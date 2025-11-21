@@ -38,8 +38,8 @@ byte colPins[COLS] = {33, 32, 23};
 Keypad keypad = Keypad( makeKeymap(touches), rowPins, colPins, ROWS, COLS );
 
 // ------------------ Wi-Fi --------------------------
-const char* ssid = "MARHABA";
-const char* password = "marhaba23";
+const char* ssid = "";
+const char* password = "";
 
 // ------------------ Cloudflare Worker --------------
 const char* worker_url = "";
