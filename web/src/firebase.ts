@@ -1,10 +1,14 @@
 // src/firebase.ts
+<<<<<<< HEAD
 // src/firebase.ts
+=======
+>>>>>>> 616d06371d46bd4b8a219dfc61aaec59c7eb679a
 import { initializeApp } from "firebase/app";
 import { getDatabase } from "firebase/database";
 import { getAuth } from "firebase/auth";
 import { getAnalytics } from "firebase/analytics";
 import { getPerformance } from "firebase/performance";
+<<<<<<< HEAD
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
@@ -19,6 +23,13 @@ const firebaseConfig = {
   messagingSenderId: "857717164447",
   appId: "1:857717164447:web:b7c3e3dec9aa0beb54d5aa",
   measurementId: "G-SWSQGMB7P1"
+=======
+
+
+// Your web app's Firebase configuration
+const firebaseConfig = {
+ 
+>>>>>>> 616d06371d46bd4b8a219dfc61aaec59c7eb679a
 };
 
 // Init
@@ -34,4 +45,8 @@ export let perf: ReturnType<typeof getPerformance> | undefined;
 if (typeof window !== "undefined") {
   try { analytics = getAnalytics(app); } catch {}
   try { perf = getPerformance(app); } catch {}
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 616d06371d46bd4b8a219dfc61aaec59c7eb679a

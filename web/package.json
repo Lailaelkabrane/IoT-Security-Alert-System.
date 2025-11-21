@@ -11,7 +11,11 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.81.1",
     "chart.js": "4.4.4",
+<<<<<<< HEAD
     "firebase": "^12.6.0",
+=======
+    "firebase": "10.14.0",
+>>>>>>> 616d06371d46bd4b8a219dfc61aaec59c7eb679a
     "lucide-react": "^0.553.0",
     "react": "^18.3.1",
     "react-chartjs-2": "5.3.1",
@@ -27,6 +31,10 @@
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.13",
     "typescript": "file:..",
+<<<<<<< HEAD
     "vite": "^7.2.2"
+=======
+    "vite": "^5.4.10"
+>>>>>>> 616d06371d46bd4b8a219dfc61aaec59c7eb679a
   }
 }

@@ -1,11 +1,19 @@
 // src/Dashboard.tsx
 import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+<<<<<<< HEAD
 import {
   Activity, Wifi, WifiOff, AlertTriangle, CheckCircle, Flame, Wind,
   Droplets, Key, Shield, Bell, Clock, LayoutDashboard, History,
   Search, Download, Filter, Calendar, LogOut, User,
   ChevronLeft, ChevronRight, Settings
+=======
+import { 
+  Activity, Wifi, WifiOff, AlertTriangle, CheckCircle, Flame, Wind, 
+  Droplets, Key, Shield, Bell, Clock, LayoutDashboard, History, 
+  Search, Download, Filter, Calendar, LogOut, User,
+  ChevronLeft, ChevronRight
+>>>>>>> 616d06371d46bd4b8a219dfc61aaec59c7eb679a
 } from 'lucide-react';
 import { dashboardService, Reading } from './supabase-dashboard';
 import { signOut } from 'firebase/auth';
@@ -13,7 +21,11 @@ import { auth } from './firebase';
 
 // Configuration
 const DEVICE_ID = 'esp32-home-01';
+<<<<<<< HEAD
 const POLLING_INTERVAL = 5000;
+=======
+const POLLING_INTERVAL = 10000; // Augmenté à 10 secondes
+>>>>>>> 616d06371d46bd4b8a219dfc61aaec59c7eb679a
 const ITEMS_PER_PAGE = 10;
 
 const Dashboard = () => {
@@ -36,6 +48,7 @@ const Dashboard = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
+<<<<<<< HEAD
   // État des contrôles
   const [controlState, setControlState] = useState({
     led_green: false,
@@ -44,6 +57,8 @@ const Dashboard = () => {
     system_armed: false
   });
 
+=======
+>>>>>>> 616d06371d46bd4b8a219dfc61aaec59c7eb679a
   // État actuel du système
   const [currentState, setCurrentState] = useState({
     gas_value: 0,
@@ -59,6 +74,14 @@ const Dashboard = () => {
     alert_level: 'Normal'
   });
 
+<<<<<<< HEAD
+=======
+  // Fonction utilitaire pour les valeurs sûres
+  const getSafeValue = (value: any, defaultValue: any = 0) => {
+    return value !== null && value !== undefined ? value : defaultValue;
+  };
+
+>>>>>>> 616d06371d46bd4b8a219dfc61aaec59c7eb679a
   // Récupérer l'email de l'utilisateur connecté
   useEffect(() => {
     const user = auth.currentUser;
@@ -98,12 +121,17 @@ const Dashboard = () => {
         loadHistoricalRecords()
       ]);
     } catch (error) {
+<<<<<<< HEAD
       console.error('Error loading dashboard data:', error);
+=======
+      console.error('❌ Error loading dashboard data:', error);
+>>>>>>> 616d06371d46bd4b8a219dfc61aaec59c7eb679a
     } finally {
       setLoading(false);
     }
   };
 
+<<<<<<< HEAD
   // Charger les données temps réel (lectures + statut)
   const loadRealtimeData = async () => {
     try {
@@ -167,10 +195,97 @@ const Dashboard = () => {
     return date.toLocaleString('fr-FR');
   };
 
+=======
+  // Formater le timestamp
+  const formatTimestamp = (timestamp: any) => {
+    if (!timestamp) return 'Jamais';
+    
+    // Convertir en millisecondes si c'est en secondes
+    let date;
+    if (typeof timestamp === 'number') {
+      // Si le timestamp est trop petit (en secondes), convertir en millisecondes
+      date = timestamp < 1000000000000 ? new Date(timestamp * 1000) : new Date(timestamp);
+    } else {
+      date = new Date(timestamp);
+    }
+    
+    return date.toLocaleString('fr-FR');
+  };
+
+  // Charger les données temps réel (lectures + statut)
+  const loadRealtimeData = async () => {
+    try {
+      console.log('🔄 Loading realtime data...');
+      
+      // Vérifier d'abord si le device existe
+      const deviceExists = await dashboardService.checkDeviceExists(DEVICE_ID);
+      if (!deviceExists) {
+        console.error(`❌ Device ${DEVICE_ID} not found in database`);
+        setIsConnected(false);
+        return;
+      }
+
+      const [latestReading, deviceStatus] = await Promise.all([
+        dashboardService.getLatestReadings(DEVICE_ID),
+        dashboardService.getDeviceStatus(DEVICE_ID)
+      ]);
+
+      console.log('📊 Latest reading:', latestReading);
+      console.log('📱 Device status:', deviceStatus);
+
+      // Mettre à jour l'état avec les données récupérées
+      setCurrentState(prev => {
+        const newState = { ...prev };
+        
+        if (latestReading) {
+          newState.gas_value = getSafeValue(latestReading.gas_value, 0);
+          newState.fire_value = getSafeValue(latestReading.fire_value, 0);
+          newState.humidity_value = getSafeValue(latestReading.humidity_value, 0);
+          newState.keypad_status = latestReading.keypad_status || 'Aucun';
+          newState.last_seen = formatTimestamp(latestReading.ts);
+        }
+
+        if (deviceStatus) {
+          newState.system_armed = deviceStatus.system_armed || false;
+          newState.led_red = deviceStatus.led_red || false;
+          newState.led_green = deviceStatus.led_green || false;
+          newState.buzzer = deviceStatus.buzzer || false;
+          newState.last_seen = formatTimestamp(deviceStatus.last_seen);
+        }
+
+        // Mettre à jour l'alerte
+        if (latestReading) {
+          newState.alert_level = calculateAlertLevel(latestReading);
+        }
+
+        return newState;
+      });
+
+      // Vérifier la connexion
+      if (deviceStatus && deviceStatus.last_seen) {
+        const now = Date.now();
+        const lastSeenMs = typeof deviceStatus.last_seen === 'number' 
+          ? (deviceStatus.last_seen < 1000000000000 ? deviceStatus.last_seen * 1000 : deviceStatus.last_seen)
+          : new Date(deviceStatus.last_seen).getTime();
+        
+        const fiveMinutesAgo = now - (5 * 60 * 1000); // 5 minutes
+        const isDeviceConnected = lastSeenMs > fiveMinutesAgo;
+        
+        setIsConnected(isDeviceConnected);
+        console.log(`📡 Connection status: ${isDeviceConnected ? 'Connected' : 'Disconnected'}, Last seen: ${new Date(lastSeenMs).toLocaleString()}`);
+      }
+    } catch (error) {
+      console.error('❌ Error loading realtime data:', error);
+      setIsConnected(false);
+    }
+  };
+
+>>>>>>> 616d06371d46bd4b8a219dfc61aaec59c7eb679a
   // Charger les données historiques pour les graphiques
   const loadHistoricalData = async () => {
     try {
       const hours = period === '24h' ? 24 : period === '7d' ? 168 : 720;
+<<<<<<< HEAD
       const since = Date.now() - (hours * 60 * 60 * 1000);
       
       console.log('Fetching historical data for', hours, 'hours, since:', new Date(since));
@@ -195,6 +310,35 @@ const Dashboard = () => {
       setHistoricalData(formattedData);
     } catch (error) {
       console.error('Error loading historical data:', error);
+=======
+      
+      console.log(`🔍 Fetching historical data for ${hours} hours`);
+      
+      const readings = await dashboardService.getHistoricalReadings(DEVICE_ID, hours);
+      
+      console.log(`✅ Raw historical readings: ${readings.length} records`);
+      
+      const formattedData = readings.map(reading => {
+        // Convertir le timestamp correctement pour l'affichage
+        const timestamp = reading.ts < 1000000000000 ? reading.ts * 1000 : reading.ts;
+        return {
+          timestamp: new Date(timestamp).toLocaleTimeString('fr-FR', { 
+            hour: '2-digit', 
+            minute: '2-digit',
+            ...(hours > 24 && { day: '2-digit', month: '2-digit' })
+          }),
+          gas_value: getSafeValue(reading.gas_value, 0),
+          fire_value: getSafeValue(reading.fire_value, 0),
+          humidity_value: getSafeValue(reading.humidity_value, 0),
+        };
+      });
+      
+      console.log('📈 Formatted chart data:', formattedData);
+      
+      setHistoricalData(formattedData);
+    } catch (error) {
+      console.error('❌ Error loading historical data:', error);
+>>>>>>> 616d06371d46bd4b8a219dfc61aaec59c7eb679a
     }
   };
 
@@ -202,6 +346,7 @@ const Dashboard = () => {
   const loadEvents = async () => {
     try {
       const eventsData = await dashboardService.getRecentEvents(DEVICE_ID, 5);
+<<<<<<< HEAD
       console.log('Recent events:', eventsData);
       
       const formattedEvents = eventsData.map(event => ({
@@ -215,6 +360,24 @@ const Dashboard = () => {
       setEvents(formattedEvents);
     } catch (error) {
       console.error('Error loading events:', error);
+=======
+      console.log('📋 Recent events:', eventsData);
+      
+      const formattedEvents = eventsData.map(event => {
+        const timestamp = event.ts < 1000000000000 ? event.ts * 1000 : event.ts;
+        return {
+          id: event.id,
+          time: new Date(timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+          type: dashboardService.formatEventType(event.type),
+          status: formatEventStatus(event.type, event.value),
+          value: event.value
+        };
+      });
+      
+      setEvents(formattedEvents);
+    } catch (error) {
+      console.error('❌ Error loading events:', error);
+>>>>>>> 616d06371d46bd4b8a219dfc61aaec59c7eb679a
     }
   };
 
@@ -227,6 +390,7 @@ const Dashboard = () => {
         dashboardService.getAllReadings(DEVICE_ID)
       ]);
 
+<<<<<<< HEAD
       console.log('Historical events:', eventsData);
       console.log('Historical readings:', readingsData);
 
@@ -252,6 +416,39 @@ const Dashboard = () => {
         action: 'Enregistrement',
         timestamp: reading.ts
       }));
+=======
+      console.log(`📚 Historical events: ${eventsData.length} records`);
+      console.log(`📊 Historical readings: ${readingsData.length} records`);
+
+      // Combiner et formater les données
+      const formattedEvents = eventsData.map(event => {
+        const timestamp = event.ts < 1000000000000 ? event.ts * 1000 : event.ts;
+        return {
+          id: `event_${event.id}`,
+          date: new Date(timestamp).toLocaleDateString('fr-FR'),
+          time: new Date(timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+          type: dashboardService.formatEventType(event.type),
+          value: event.value,
+          status: formatEventStatus(event.type, event.value),
+          action: getEventAction(event.type, event.value),
+          timestamp: timestamp
+        };
+      });
+
+      const formattedReadings = readingsData.map(reading => {
+        const timestamp = reading.ts < 1000000000000 ? reading.ts * 1000 : reading.ts;
+        return {
+          id: `reading_${reading.id}`,
+          date: new Date(timestamp).toLocaleDateString('fr-FR'),
+          time: new Date(timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+          type: 'Lecture Capteur',
+          value: `Gaz: ${getSafeValue(reading.gas_value, 0)}ppm, Feu: ${getSafeValue(reading.fire_value, 0)}°C, Humidité: ${getSafeValue(reading.humidity_value, 0)}%, RFID: ${reading.keypad_status || 'N/A'}`,
+          status: '📊 Mesure',
+          action: 'Enregistrement',
+          timestamp: timestamp
+        };
+      });
+>>>>>>> 616d06371d46bd4b8a219dfc61aaec59c7eb679a
 
       // Combiner et trier par timestamp
       const allRecords = [...formattedEvents, ...formattedReadings]
@@ -261,7 +458,11 @@ const Dashboard = () => {
       setFilteredRecords(allRecords);
       updatePagination(allRecords);
     } catch (error) {
+<<<<<<< HEAD
       console.error('Error loading historical records:', error);
+=======
+      console.error('❌ Error loading historical records:', error);
+>>>>>>> 616d06371d46bd4b8a219dfc61aaec59c7eb679a
     }
   };
 
@@ -281,8 +482,13 @@ const Dashboard = () => {
 
   // Helper pour calculer le niveau d'alerte
   const calculateAlertLevel = (reading: Reading): string => {
+<<<<<<< HEAD
     if (reading.gas_value > 80 || reading.fire_value > 60) return 'Urgent';
     if (reading.gas_value > 60 || reading.fire_value > 40) return 'Alerte';
+=======
+    if (getSafeValue(reading.gas_value, 0) > 80 || getSafeValue(reading.fire_value, 0) > 60) return 'Urgent';
+    if (getSafeValue(reading.gas_value, 0) > 60 || getSafeValue(reading.fire_value, 0) > 40) return 'Alerte';
+>>>>>>> 616d06371d46bd4b8a219dfc61aaec59c7eb679a
     return 'Normal';
   };
 
@@ -373,11 +579,19 @@ const Dashboard = () => {
     const headers = ['ID', 'Date', 'Heure', 'Type', 'Valeur', 'Statut', 'Action'];
     const csvContent = [
       headers.join(','),
+<<<<<<< HEAD
       ...filteredRecords.map(record =>
         [record.id, record.date, record.time, record.type, `"${record.value}"`, record.status, record.action].join(',')
       )
     ].join('\n');
 
+=======
+      ...filteredRecords.map(record => 
+        [record.id, record.date, record.time, record.type, `"${record.value}"`, record.status, record.action].join(',')
+      )
+    ].join('\n');
+    
+>>>>>>> 616d06371d46bd4b8a219dfc61aaec59c7eb679a
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -385,6 +599,7 @@ const Dashboard = () => {
     link.click();
   };
 
+<<<<<<< HEAD
   // Fonction pour envoyer une commande à Firebase
   const sendControlCommand = async (command: string, value: boolean) => {
     try {
@@ -409,6 +624,8 @@ const Dashboard = () => {
     }
   };
 
+=======
+>>>>>>> 616d06371d46bd4b8a219dfc61aaec59c7eb679a
   const getAlertColor = (level: string) => {
     switch(level) {
       case 'Normal': return 'text-green-500';
@@ -485,8 +702,14 @@ const Dashboard = () => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
         <div className="text-center">
+<<<<<<< HEAD
           <Activity className="mx-auto mb-4 text-blue-500" size={48} />
           <p className="text-xl font-semibold text-gray-700">Chargement des données...</p>
+=======
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-xl font-semibold text-gray-700">Chargement des données...</p>
+          <p className="text-gray-500 mt-2">Vérification de la connexion à la base de données</p>
+>>>>>>> 616d06371d46bd4b8a219dfc61aaec59c7eb679a
         </div>
       </div>
     );
@@ -562,6 +785,7 @@ const Dashboard = () => {
               Dashboard
             </button>
             <button
+<<<<<<< HEAD
               onClick={() => setActiveTab('controle')}
               className={`flex items-center gap-2 px-6 py-3 font-semibold transition-all ${
                 activeTab === 'controle'
@@ -573,6 +797,8 @@ const Dashboard = () => {
               Contrôle
             </button>
             <button
+=======
+>>>>>>> 616d06371d46bd4b8a219dfc61aaec59c7eb679a
               onClick={() => setActiveTab('historique')}
               className={`flex items-center gap-2 px-6 py-3 font-semibold transition-all ${
                 activeTab === 'historique'
@@ -660,6 +886,7 @@ const Dashboard = () => {
               <div className="bg-white rounded-2xl shadow-xl p-6">
                 <h2 className="text-xl font-bold text-gray-800 mb-4">Événements Récents</h2>
                 <div className="space-y-3 max-h-[340px] overflow-y-auto">
+<<<<<<< HEAD
                   {events.map(event => (
                     <div key={event.id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                       <div className="flex-shrink-0 w-16 text-sm font-semibold text-gray-600">
@@ -672,6 +899,26 @@ const Dashboard = () => {
                       <div className="text-lg">{event.status}</div>
                     </div>
                   ))}
+=======
+                  {events.length > 0 ? (
+                    events.map(event => (
+                      <div key={event.id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                        <div className="flex-shrink-0 w-16 text-sm font-semibold text-gray-600">
+                          {event.time}
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-semibold text-gray-800">{event.type}</div>
+                          <div className="text-sm text-gray-600">{event.value}</div>
+                        </div>
+                        <div className="text-lg">{event.status}</div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      Aucun événement récent
+                    </div>
+                  )}
+>>>>>>> 616d06371d46bd4b8a219dfc61aaec59c7eb679a
                 </div>
               </div>
             </div>
@@ -694,6 +941,7 @@ const Dashboard = () => {
               </div>
             </div>
           </>
+<<<<<<< HEAD
         ) : activeTab === 'controle' ? (
           /* Vue Contrôle */
           <div className="space-y-6">
@@ -836,6 +1084,8 @@ const Dashboard = () => {
               </div>
             </div>
           </div>
+=======
+>>>>>>> 616d06371d46bd4b8a219dfc61aaec59c7eb679a
         ) : (
           /* Vue Historique */
           <div className="space-y-6">
@@ -905,6 +1155,7 @@ const Dashboard = () => {
 
             {/* Tableau d'historique */}
             <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+<<<<<<< HEAD
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gradient-to-r from-blue-50 to-purple-50">
@@ -1003,6 +1254,116 @@ const Dashboard = () => {
                       </button>
                     </div>
                   </div>
+=======
+              {filteredRecords.length > 0 ? (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gradient-to-r from-blue-50 to-purple-50">
+                        <tr>
+                          <th className="px-6 py-4 text-left text-sm font-bold text-gray-700">ID</th>
+                          <th className="px-6 py-4 text-left text-sm font-bold text-gray-700">Date</th>
+                          <th className="px-6 py-4 text-left text-sm font-bold text-gray-700">Heure</th>
+                          <th className="px-6 py-4 text-left text-sm font-bold text-gray-700">Type</th>
+                          <th className="px-6 py-4 text-left text-sm font-bold text-gray-700">Valeur</th>
+                          <th className="px-6 py-4 text-left text-sm font-bold text-gray-700">Statut</th>
+                          <th className="px-6 py-4 text-left text-sm font-bold text-gray-700">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {getCurrentPageData().map((record, index) => (
+                          <tr key={record.id} className={`hover:bg-gray-50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-25'}`}>
+                            <td className="px-6 py-4 text-sm text-gray-800 font-semibold">#{record.id}</td>
+                            <td className="px-6 py-4 text-sm text-gray-600">{record.date}</td>
+                            <td className="px-6 py-4 text-sm text-gray-600">{record.time}</td>
+                            <td className="px-6 py-4 text-sm">
+                              <span className="px-3 py-1 rounded-full bg-blue-100 text-blue-700 font-medium">
+                                {record.type}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-sm text-gray-800 font-medium max-w-xs truncate">{record.value}</td>
+                            <td className="px-6 py-4 text-sm">
+                              <span className={`px-3 py-1 rounded-full font-medium ${getStatusBadge(record.status)}`}>
+                                {record.status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-sm text-gray-600">{record.action}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Pagination */}
+                  {totalPages > 1 && (
+                    <div className="bg-white px-6 py-4 border-t border-gray-200">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm text-gray-700">
+                          Affichage de {(currentPage - 1) * ITEMS_PER_PAGE + 1} à {Math.min(currentPage * ITEMS_PER_PAGE, filteredRecords.length)} sur {filteredRecords.length} entrées
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={goToPrevPage}
+                            disabled={currentPage === 1}
+                            className={`p-2 rounded-lg border ${
+                              currentPage === 1 
+                                ? 'text-gray-400 border-gray-300 cursor-not-allowed' 
+                                : 'text-gray-700 border-gray-300 hover:bg-gray-50'
+                            }`}
+                          >
+                            <ChevronLeft size={20} />
+                          </button>
+                          
+                          {/* Indicateurs de page */}
+                          {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                            let pageNum;
+                            if (totalPages <= 5) {
+                              pageNum = i + 1;
+                            } else if (currentPage <= 3) {
+                              pageNum = i + 1;
+                            } else if (currentPage >= totalPages - 2) {
+                              pageNum = totalPages - 4 + i;
+                            } else {
+                              pageNum = currentPage - 2 + i;
+                            }
+                            
+                            return (
+                              <button
+                                key={pageNum}
+                                onClick={() => goToPage(pageNum)}
+                                className={`px-3 py-1 rounded-lg border ${
+                                  currentPage === pageNum
+                                    ? 'bg-blue-500 text-white border-blue-500'
+                                    : 'text-gray-700 border-gray-300 hover:bg-gray-50'
+                                }`}
+                              >
+                                {pageNum}
+                              </button>
+                            );
+                          })}
+                          
+                          <button
+                            onClick={goToNextPage}
+                            disabled={currentPage === totalPages}
+                            className={`p-2 rounded-lg border ${
+                              currentPage === totalPages
+                                ? 'text-gray-400 border-gray-300 cursor-not-allowed'
+                                : 'text-gray-700 border-gray-300 hover:bg-gray-50'
+                            }`}
+                          >
+                            <ChevronRight size={20} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="text-center py-12">
+                  <div className="text-gray-400 text-6xl mb-4">📊</div>
+                  <h3 className="text-lg font-semibold text-gray-700 mb-2">Aucune donnée trouvée</h3>
+                  <p className="text-gray-500">Aucun enregistrement ne correspond à vos critères de recherche.</p>
+>>>>>>> 616d06371d46bd4b8a219dfc61aaec59c7eb679a
                 </div>
               )}
             </div>
@@ -1013,4 +1374,8 @@ const Dashboard = () => {
   );
 };
 
+<<<<<<< HEAD
 export default Dashboard;
+=======
+export default Dashboard;
+>>>>>>> 616d06371d46bd4b8a219dfc61aaec59c7eb679a
