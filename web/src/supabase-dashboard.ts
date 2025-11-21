@@ -29,52 +29,101 @@ export interface Event {
 }
 
 export const dashboardService = {
-  // Récupérer les dernières lectures (pour les jauges)
+  // Récupérer les dernières lectures - CORRIGÉ
   async getLatestReadings(deviceId: string): Promise<Reading | null> {
     try {
+      console.log('🔍 Fetching latest readings for device:', deviceId);
+      
       const { data, error } = await supabase
         .from('readings')
         .select('*')
         .eq('device_id', deviceId)
         .order('ts', { ascending: false })
-        .limit(1)
-        .single();
+        .limit(1);
 
       if (error) {
-        console.error('Error fetching latest readings:', error);
+        console.error('❌ Error fetching latest readings:', error);
         return null;
       }
-      return data;
+      
+      // Retourner le premier élément du tableau ou null si vide
+      const result = data && data.length > 0 ? data[0] : null;
+      console.log('✅ Latest readings:', result);
+      return result;
     } catch (error) {
-      console.error('Exception in getLatestReadings:', error);
+      console.error('❌ Exception in getLatestReadings:', error);
       return null;
     }
   },
 
-  // Récupérer le statut actuel du device
+  // Récupérer le statut du device - CORRIGÉ
   async getDeviceStatus(deviceId: string): Promise<DeviceStatus | null> {
     try {
+      console.log('🔍 Fetching device status for:', deviceId);
+      
       const { data, error } = await supabase
         .from('device_status')
         .select('*')
-        .eq('device_id', deviceId)
-        .single();
+        .eq('device_id', deviceId);
 
       if (error) {
-        console.error('Error fetching device status:', error);
+        console.error('❌ Error fetching device status:', error);
         return null;
       }
-      return data;
+      
+      // Retourner le premier élément ou null
+      const status = data && data.length > 0 ? data[0] : null;
+      console.log('✅ Device status:', status);
+      
+      if (!status) {
+        console.log('📝 No device status found, creating default entry');
+        return this.createDefaultDeviceStatus(deviceId);
+      }
+      
+      return status;
     } catch (error) {
-      console.error('Exception in getDeviceStatus:', error);
+      console.error('❌ Exception in getDeviceStatus:', error);
       return null;
     }
   },
 
-  // Récupérer l'historique des lectures pour les graphiques
+  // Créer un statut par défaut si non existant - CORRIGÉ
+  async createDefaultDeviceStatus(deviceId: string): Promise<DeviceStatus | null> {
+    try {
+      const defaultStatus = {
+        device_id: deviceId,
+        last_seen: Math.floor(Date.now() / 1000), // en secondes
+        system_armed: false,
+        led_red: false,
+        led_green: false,
+        buzzer: false
+      };
+
+      const { data, error } = await supabase
+        .from('device_status')
+        .insert([defaultStatus])
+        .select();
+
+      if (error) {
+        console.error('❌ Error creating default device status:', error);
+        return null;
+      }
+
+      console.log('✅ Created default device status:', data?.[0]);
+      return data && data.length > 0 ? data[0] : null;
+    } catch (error) {
+      console.error('❌ Exception in createDefaultDeviceStatus:', error);
+      return null;
+    }
+  },
+
+  // Récupérer l'historique des lectures pour les graphiques - CORRIGÉ
   async getHistoricalReadings(deviceId: string, hours: number = 24): Promise<Reading[]> {
     try {
-      const since = Date.now() - (hours * 60 * 60 * 1000);
+      // Convertir en millisecondes puis en secondes (comme stocké en base)
+      const since = Math.floor((Date.now() - (hours * 60 * 60 * 1000)) / 1000);
+      
+      console.log(`🔍 Fetching historical data for ${hours}h, since:`, new Date(since * 1000));
       
       const { data, error } = await supabase
         .from('readings')
@@ -84,19 +133,23 @@ export const dashboardService = {
         .order('ts', { ascending: true });
 
       if (error) {
-        console.error('Error fetching historical readings:', error);
+        console.error('❌ Error fetching historical readings:', error);
         return [];
       }
+      
+      console.log(`✅ Found ${data?.length || 0} historical readings`);
       return data || [];
     } catch (error) {
-      console.error('Exception in getHistoricalReadings:', error);
+      console.error('❌ Exception in getHistoricalReadings:', error);
       return [];
     }
   },
 
-  // Récupérer les événements récents
+  // Récupérer les événements récents - CORRIGÉ
   async getRecentEvents(deviceId: string, limit: number = 10): Promise<Event[]> {
     try {
+      console.log('🔍 Fetching recent events for device:', deviceId);
+      
       const { data, error } = await supabase
         .from('events')
         .select('*')
@@ -105,19 +158,23 @@ export const dashboardService = {
         .limit(limit);
 
       if (error) {
-        console.error('Error fetching events:', error);
+        console.error('❌ Error fetching events:', error);
         return [];
       }
+      
+      console.log('✅ Recent events:', data);
       return data || [];
     } catch (error) {
-      console.error('Exception in getRecentEvents:', error);
+      console.error('❌ Exception in getRecentEvents:', error);
       return [];
     }
   },
 
-  // Récupérer tous les événements pour l'historique
+  // Récupérer tous les événements pour l'historique - CORRIGÉ
   async getAllEvents(deviceId: string): Promise<Event[]> {
     try {
+      console.log('🔍 Fetching all events for device:', deviceId);
+      
       const { data, error } = await supabase
         .from('events')
         .select('*')
@@ -125,19 +182,23 @@ export const dashboardService = {
         .order('ts', { ascending: false });
 
       if (error) {
-        console.error('Error fetching all events:', error);
+        console.error('❌ Error fetching all events:', error);
         return [];
       }
+      
+      console.log(`✅ Found ${data?.length || 0} events`);
       return data || [];
     } catch (error) {
-      console.error('Exception in getAllEvents:', error);
+      console.error('❌ Exception in getAllEvents:', error);
       return [];
     }
   },
 
-  // NOUVELLE FONCTION : Récupérer tous les readings pour l'historique
+  // Récupérer tous les readings pour l'historique - CORRIGÉ
   async getAllReadings(deviceId: string): Promise<Reading[]> {
     try {
+      console.log('🔍 Fetching all readings for device:', deviceId);
+      
       const { data, error } = await supabase
         .from('readings')
         .select('*')
@@ -145,13 +206,40 @@ export const dashboardService = {
         .order('ts', { ascending: false });
 
       if (error) {
-        console.error('Error fetching all readings:', error);
+        console.error('❌ Error fetching all readings:', error);
         return [];
       }
+      
+      console.log(`✅ Found ${data?.length || 0} readings`);
       return data || [];
     } catch (error) {
-      console.error('Exception in getAllReadings:', error);
+      console.error('❌ Exception in getAllReadings:', error);
       return [];
+    }
+  },
+
+  // Vérifier si le device existe - CORRIGÉ
+  async checkDeviceExists(deviceId: string): Promise<boolean> {
+    try {
+      console.log('🔍 Checking if device exists:', deviceId);
+      
+      const { data, error } = await supabase
+        .from('devices')
+        .select('id')
+        .eq('id', deviceId)
+        .limit(1);
+
+      if (error) {
+        console.error('❌ Error checking device existence:', error);
+        return false;
+      }
+      
+      const exists = data && data.length > 0;
+      console.log('✅ Device exists:', exists);
+      return exists;
+    } catch (error) {
+      console.error('❌ Exception in checkDeviceExists:', error);
+      return false;
     }
   },
 
@@ -188,25 +276,5 @@ export const dashboardService = {
       'humidity': 'Mesure enregistrée'
     };
     return actions[type] || 'Événement enregistré';
-  },
-
-  // NOUVEAU : Vérifier si le device existe
-  async checkDeviceExists(deviceId: string): Promise<boolean> {
-    try {
-      const { data, error } = await supabase
-        .from('devices')
-        .select('id')
-        .eq('id', deviceId)
-        .single();
-
-      if (error) {
-        console.error('Error checking device existence:', error);
-        return false;
-      }
-      return !!data;
-    } catch (error) {
-      console.error('Exception in checkDeviceExists:', error);
-      return false;
-    }
   }
 };
