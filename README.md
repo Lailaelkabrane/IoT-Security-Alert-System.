@@ -94,5 +94,4 @@ cd web
 npm install
 npm run build
 firebase deploy --only hosting
->>>>>>> 616d06371d46bd4b8a219dfc61aaec59c7eb679a
 
