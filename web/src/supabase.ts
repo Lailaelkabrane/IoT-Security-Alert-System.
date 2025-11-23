@@ -4,9 +4,6 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-<<<<<<< HEAD
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
-=======
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Fonction pour logger les événements
@@ -46,4 +43,3 @@ export const logEvent = async (type: string, details: any, userId?: string) => {
     console.error('Erreur logging:', error);
   }
 };
->>>>>>> 616d06371d46bd4b8a219dfc61aaec59c7eb679a
